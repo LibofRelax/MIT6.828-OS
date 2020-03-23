@@ -64,7 +64,10 @@ int mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
             cprintf("%08x ", ptr[j + 2]);
         cprintf("\n");
 
-        debuginfo_eip(eip, &info);
+        if (debuginfo_eip(eip, &info) != 0) {
+            cprintf("error in getting debug info\n");
+            return 0;
+        }
         uint32_t plus_num = eip - info.eip_fn_addr;
         // fn_name is weird, string: F(0:25) is attached
         cprintf("\t%s:%d: %.*s+%d\n", info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, plus_num);
