@@ -5,23 +5,8 @@
 #include <inc/string.h>
 
 #include <kern/console.h>
-<<<<<<< HEAD
-#include <kern/pmap.h>
 #include <kern/kclock.h>
-
-=======
-#include <kern/monitor.h>
-
-// Test the stack backtrace function (lab 1 only)
-void test_backtrace(int x) {
-    cprintf("entering test_backtrace %d\n", x);
-    if (x > 0)
-        test_backtrace(x - 1);
-    else
-        mon_backtrace(0, 0, 0);
-    cprintf("leaving test_backtrace %d\n", x);
-}
->>>>>>> lab1
+#include <kern/pmap.h>
 
 void i386_init(void) {
     extern char edata[], end[];
@@ -37,58 +22,47 @@ void i386_init(void) {
 
     cprintf("6828 decimal is %o octal!\n", 6828);
 
-<<<<<<< HEAD
-	// Lab 2 memory management initialization functions
-	mem_init();
-=======
-    // Test the stack backtrace function (lab 1 only)
-    test_backtrace(5);
->>>>>>> lab1
+    mem_init();
 
-    // Drop into the kernel monitor.
-    while (1)
-        monitor(NULL);
-}
-
-/*
+    /*
  * Variable panicstr contains argument to first call to panic; used as flag
  * to indicate that the kernel has already called panic.
  */
-const char *panicstr;
+    const char *panicstr;
 
-/*
+    /*
  * Panic is called on unresolvable fatal errors.
  * It prints "panic: mesg", and then enters the kernel monitor.
  */
-void _panic(const char *file, int line, const char *fmt, ...) {
-    va_list ap;
+    void _panic(const char *file, int line, const char *fmt, ...) {
+        va_list ap;
 
-    if (panicstr)
-        goto dead;
-    panicstr = fmt;
+        if (panicstr)
+            goto dead;
+        panicstr = fmt;
 
-    // Be extra sure that the machine is in as reasonable state
-    asm volatile("cli; cld");
+        // Be extra sure that the machine is in as reasonable state
+        asm volatile("cli; cld");
 
-    va_start(ap, fmt);
-    cprintf("kernel panic at %s:%d: ", file, line);
-    vcprintf(fmt, ap);
-    cprintf("\n");
-    va_end(ap);
+        va_start(ap, fmt);
+        cprintf("kernel panic at %s:%d: ", file, line);
+        vcprintf(fmt, ap);
+        cprintf("\n");
+        va_end(ap);
 
-dead:
-    /* break into the kernel monitor */
-    while (1)
-        monitor(NULL);
-}
+    dead:
+        /* break into the kernel monitor */
+        while (1)
+            monitor(NULL);
+    }
 
-/* like panic, but don't */
-void _warn(const char *file, int line, const char *fmt, ...) {
-    va_list ap;
+    /* like panic, but don't */
+    void _warn(const char *file, int line, const char *fmt, ...) {
+        va_list ap;
 
-    va_start(ap, fmt);
-    cprintf("kernel warning at %s:%d: ", file, line);
-    vcprintf(fmt, ap);
-    cprintf("\n");
-    va_end(ap);
-}
+        va_start(ap, fmt);
+        cprintf("kernel warning at %s:%d: ", file, line);
+        vcprintf(fmt, ap);
+        cprintf("\n");
+        va_end(ap);
+    }
