@@ -155,6 +155,7 @@ void mem_init(void) {
     // Your code goes here:
     pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
     memset(pages, 0, sizeof(struct PageInfo) * npages);
+    cprintf("%d pages are allocated\n", npages);
 
     //////////////////////////////////////////////////////////////////////
     // Now that we've allocated the initial kernel data structures, we set
@@ -348,7 +349,32 @@ void page_decref(struct PageInfo *pp) {
 pte_t *
 pgdir_walk(pde_t *pgdir, const void *va, int create) {
     // Fill this function in
-    return NULL;
+
+    // pgdir is a virtual address
+    // page diorectory stores physical addresses of page tables
+    // with additional permission bits
+
+    // 1. take out the addr part with PTE_ADDR()
+    // 2. turn phys addr to virt addr with KADDR()
+    pte_t *pgtable = (pte_t *) KADDR(PTE_ADDR(pgdir[PDX(va)]));
+
+    // can't find a better way to extract permission bits
+    if (!(pgdir[PDX(va)] & PTE_P)) {
+        if (!create)
+            return NULL;
+        else {
+            struct PageInfo *new_page = page_alloc(ALLOC_ZERO);
+            if (!new_page)
+                return NULL;
+            new_page->pp_ref++;
+            // setting permissions
+            pgdir[PDX(va)] = page2pa(new_page) | PTE_U | PTE_W | PTE_P;
+            pgtable        = (pte_t *) page2kva(new_page);
+        }
+    }
+    // entry is a line in the page table
+    // not the page table itself
+    return &(pgtable[PTX(va)]);
 }
 
 //
@@ -365,6 +391,16 @@ pgdir_walk(pde_t *pgdir, const void *va, int create) {
 static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm) {
     // Fill this function in
+    uint32_t lim = va + size;
+    for (; va < lim;) {
+        pte_t *pgtable = pgdir_walk(pgdir, (void *) va, 1);
+        if (!pgtable)
+            panic("Boot map fail\n");
+        *pgtable = pa | perm | PTE_P;
+
+        va += PGSIZE;
+        pa += PGSIZE;
+    }
 }
 
 //
@@ -394,6 +430,19 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 //
 int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm) {
     // Fill this function in
+    pte_t *pgtable = pgdir_walk(pgdir, va, 1);
+    if (!pgtable)
+        return -E_NO_MEM;
+
+    // if ref is 1 when inserting duplicate page,
+    // reomving it would cause it to be added into the free list
+    // and no easy way to reverse that.
+    // So here increment ref before removing the page.
+    pp->pp_ref++;
+    if (*pgtable & PTE_P)
+        page_remove(pgdir, va);
+
+    *pgtable = page2pa(pp) | perm | PTE_P;
     return 0;
 }
 
@@ -411,7 +460,15 @@ int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm) {
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store) {
     // Fill this function in
-    return NULL;
+
+    pte_t *pgtable = pgdir_walk(pgdir, va, 0);
+    if (!(*pgtable & PTE_P) || !pgtable)  // if no phys addr present
+        return NULL;
+
+    if (pte_store) {
+        *pte_store = pgtable;
+    }
+    return pa2page(PTE_ADDR(*pgtable));
 }
 
 //
@@ -431,12 +488,21 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store) {
 //
 void page_remove(pde_t *pgdir, void *va) {
     // Fill this function in
+    pte_t *          pgtable;
+    struct PageInfo *page = page_lookup(pgdir, va, &pgtable);
+
+    if (page) {
+        page_decref(page);
+        *pgtable = 0;
+        tlb_invalidate(pgdir, va);
+    }
 }
 
 //
 // Invalidate a TLB entry, but only if the page tables being
 // edited are the ones currently in use by the processor.
 //
+// TLB : Translation Lookaside Buffer
 void tlb_invalidate(pde_t *pgdir, void *va) {
     // Flush the entry only if we're modifying the current address space.
     // For now, there is only one address space, so always invalidate.
