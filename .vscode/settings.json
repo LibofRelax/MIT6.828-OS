@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "stab.h": "c"
+    },
+    "command-runner.commands": {
+        "run gdb server": "make qemu-gdb",
+        "recompile & run gdb server": "make clean && make && make qemu-gdb",
+        "recompile & run": "make clean && make && make qemu",
+        "recompile": "make clean && make",
+        "run": "make qemu"
+    }
+}
