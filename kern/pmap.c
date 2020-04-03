@@ -8,6 +8,7 @@
 
 #include <kern/env.h>
 #include <kern/kclock.h>
+#include <kern/pmap.h>
 
 // These variables are set by i386_detect_memory()
 size_t        npages;          // Amount of physical memory (in pages)
@@ -155,7 +156,10 @@ void mem_init(void) {
     // Your code goes here:
     pages = (struct PageInfo *) boot_alloc(sizeof(struct PageInfo) * npages);
     memset(pages, 0, sizeof(struct PageInfo) * npages);
-    cprintf("%d pages are allocated\n", npages);
+
+    //// allocating NENV struct Env
+    envs = (struct Env *) boot_alloc(sizeof(struct Env) * NENV);
+    memset(envs, 0, sizeof(struct Env) * NENV);
 
     //////////////////////////////////////////////////////////////////////
     // Now that we've allocated the initial kernel data structures, we set
@@ -183,6 +187,11 @@ void mem_init(void) {
                     UPAGES,
                     ROUNDUP(npages * sizeof(struct PageInfo), PGSIZE),
                     PADDR(pages), PTE_U);
+
+    //// map envs to UENV
+    boot_map_region(kern_pgdir, UENVS,
+                    ROUNDUP(NENV * sizeof(struct Env), PGSIZE),
+                    PADDR(envs), PTE_U);
 
     //////////////////////////////////////////////////////////////////////
     // Use the physical memory that 'bootstack' refers to as the kernel

@@ -7,6 +7,8 @@
 #include <kern/console.h>
 #include <kern/env.h>
 #include <kern/kclock.h>
+#include <kern/monitor.h>
+#include <kern/pmap.h>
 #include <kern/trap.h>
 
 void i386_init(void) {
@@ -20,6 +22,9 @@ void i386_init(void) {
     // Initialize the console.
     // Can't call cprintf until after we do this!
     cons_init();
+    cprintf("------JOS RUNNING------\n");
+
+    mem_init();
 
     // Lab 3 user environment initialization functions
     env_init();
