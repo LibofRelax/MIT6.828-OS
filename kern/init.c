@@ -22,9 +22,9 @@ void i386_init(void) {
     // Initialize the console.
     // Can't call cprintf until after we do this!
     cons_init();
-    cprintf("------JOS RUNNING------\n");
 
     mem_init();
+    cprintf("Welcome to the JOS kernel monitor!\n");
 
     // Lab 3 user environment initialization functions
     env_init();

@@ -289,7 +289,6 @@ region_alloc(struct Env *e, void *va, size_t len) {
     len = ROUNDUP(len, PGSIZE);
 
     int pgnum = len / PGSIZE, i;
-    cprintf("allocating %d pages\n", pgnum);
     for (i = 0; i < pgnum; i++, va += PGSIZE) {
         struct PageInfo *p;
         if (!(p = page_alloc(0)))
