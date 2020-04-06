@@ -23,15 +23,7 @@ sys_cputs(const char *s, size_t len) {
     // Destroy the environment if not.
 
     // LAB 3: Your code here.
-    int i;
-    for (i = 0; PGSIZE * i < len; i++) {
-        pte_t *pte;
-        if (page_lookup(curenv->env_pgdir, (void *) (s + PGSIZE * i), &pte) == NULL ||
-            !(*pte & PTE_U)) {
-            sys_env_destroy(curenv->env_id);
-            return;
-        }
-    }
+    user_mem_assert(curenv, (void *) s, len, 0);
 
     // Print the string supplied by the user.
     cprintf("%.*s", len, s);

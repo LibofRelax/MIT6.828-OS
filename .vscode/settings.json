@@ -1,6 +1,7 @@
 {
     "files.associations": {
-        "stab.h": "c"
+        "stab.h": "c",
+        "kclock.h": "c"
     },
     "command-runner.commands": {
         "run gdb server": "make qemu-gdb",

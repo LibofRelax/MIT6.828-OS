@@ -285,11 +285,10 @@ region_alloc(struct Env *e, void *va, size_t len) {
     if (len <= 0)
         panic("allocation length invalid, len=%d", len);
 
-    va  = ROUNDDOWN(va, PGSIZE);
-    len = ROUNDUP(len, PGSIZE);
+    va           = ROUNDDOWN(va, PGSIZE);
+    void *va_end = ROUNDUP(va + len, PGSIZE);
 
-    int pgnum = len / PGSIZE, i;
-    for (i = 0; i < pgnum; i++, va += PGSIZE) {
+    for (; va < va_end; va += PGSIZE) {
         struct PageInfo *p;
         if (!(p = page_alloc(0)))
             panic("No free memory");
