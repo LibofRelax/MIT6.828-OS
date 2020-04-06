@@ -24,7 +24,9 @@ struct Command {
 static struct Command commands[] = {
     { "help", "Display this list of commands", mon_help },
     { "kerninfo", "Display information about the kernel", mon_kerninfo },
-    { "backtrace", "Display stack backtraces", mon_backtrace }
+    { "backtrace", "Display stack backtraces", mon_backtrace },
+    { "c", "Continue in debug", mon_continue },
+    { "si", "Stepi in debug", mon_stepi },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -78,6 +80,27 @@ int mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
     return 0;
 }
 
+int mon_continue(int argc, char **argv, struct Trapframe *tf) {
+    if (tf->tf_trapno != T_BRKPT) {
+        cprintf("Not at a breakpoint\n");
+        return 0;
+    }
+    tf->tf_eflags &= ~(FL_TF);
+    cprintf("Continuing\n");
+    return -1;
+}
+
+int mon_stepi(int argc, char **argv, struct Trapframe *tf) {
+    if (tf->tf_trapno != T_BRKPT) {
+        cprintf("Not at a breakpoint\n");
+        return 0;
+    }
+
+    tf->tf_eflags |= FL_TF;
+    cprintf("Stepi\n");
+    return -1;
+}
+
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "
@@ -122,17 +145,26 @@ runcmd(char *buf, struct Trapframe *tf) {
 }
 
 void monitor(struct Trapframe *tf) {
-    char *buf;
+    char *      buf, *tmp;
+    static char p_buf[1024];
+    buf      = NULL;
+    p_buf[0] = 0;
+    tmp      = p_buf;
 
     if (tf != NULL)
         print_trapframe(tf);
 
     while (1) {
         buf = readline("K> ");
-        if (buf != NULL) {
-            // cprintf("buffer accepted: %s\n", buf);
-            if (runcmd(buf, tf) < 0)
-                break;
+
+        if (buf != NULL && *buf != 0) {
+            strcpy(p_buf, buf);
+            tmp = buf;
+        } else if (*p_buf != 0) {
+            tmp = p_buf;
         }
+
+        if (runcmd(tmp, tf) < 0)
+            break;
     }
 }
