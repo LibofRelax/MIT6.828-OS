@@ -20,11 +20,26 @@
 //   as meaning "no page".  (Zero is not the right value, since that's
 //   a perfectly valid place to map a page.)
 int32_t
-ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
-{
-	// LAB 4: Your code here.
-	panic("ipc_recv not implemented");
-	return 0;
+ipc_recv(envid_t *from_env_store, void *pg, int *perm_store) {
+    // LAB 4: Your code here.
+    int   r;
+    void *dstva = pg == NULL ? (void *) UTOP : pg;
+
+    r = sys_ipc_recv(dstva);
+    if (r < 0) {
+        if (from_env_store != NULL)
+            *from_env_store = 0;
+        if (perm_store != NULL)
+            *perm_store = 0;
+        return r;
+    }
+
+    if (from_env_store != NULL)
+        *from_env_store = thisenv->env_ipc_from;
+    if (perm_store != NULL)
+        *perm_store = thisenv->env_ipc_perm;
+
+    return thisenv->env_ipc_value;
 }
 
 // Send 'val' (and 'pg' with 'perm', if 'pg' is nonnull) to 'toenv'.
@@ -35,22 +50,28 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 //   Use sys_yield() to be CPU-friendly.
 //   If 'pg' is null, pass sys_ipc_try_send a value that it will understand
 //   as meaning "no page".  (Zero is not the right value.)
-void
-ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
-{
-	// LAB 4: Your code here.
-	panic("ipc_send not implemented");
+void ipc_send(envid_t to_env, uint32_t val, void *pg, int perm) {
+    // LAB 4: Your code here.
+    int   r;
+    void *srcva = pg == NULL ? (void *) UTOP : pg;
+
+    do {
+        r = sys_ipc_try_send(to_env, val, srcva, perm);
+        if (r != -E_IPC_NOT_RECV && r != 0)
+            panic("IPC error, err code: %d\n", r);
+
+        sys_yield();
+    } while (r < 0);
 }
 
 // Find the first environment of the given type.  We'll use this to
 // find special environments.
 // Returns 0 if no such environment exists.
 envid_t
-ipc_find_env(enum EnvType type)
-{
-	int i;
-	for (i = 0; i < NENV; i++)
-		if (envs[i].env_type == type)
-			return envs[i].env_id;
-	return 0;
+ipc_find_env(enum EnvType type) {
+    int i;
+    for (i = 0; i < NENV; i++)
+        if (envs[i].env_type == type)
+            return envs[i].env_id;
+    return 0;
 }

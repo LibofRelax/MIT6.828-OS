@@ -208,9 +208,7 @@ void mem_init(void) {
     //       overwrite memory.  Known as a "guard page".
     //     Permissions: kernel RW, user NONE
     // Your code goes here:
-    boot_map_region(kern_pgdir,
-                    KSTACKTOP - KSTKSIZE,
-                    KSTKSIZE, PADDR(bootstack), PTE_W);
+    mem_init_mp();
 
     //////////////////////////////////////////////////////////////////////
     // Map all of physical memory at KERNBASE.
@@ -268,6 +266,11 @@ mem_init_mp(void) {
     //     Permissions: kernel RW, user NONE
     //
     // LAB 4: Your code here:
+    uint32_t addr = KERNBASE - KSTKSIZE;
+    for (int i = 0; i < NCPU; i++) {
+        boot_map_region(kern_pgdir, addr, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W);
+        addr -= KSTKSIZE + KSTKGAP;
+    }
 }
 
 // --------------------------------------------------------------
@@ -306,7 +309,7 @@ void page_init(void) {
     // assert(PADDR(KERNBASE) == EXTPHYSMEM);
     size_t i;
     for (i = 1; i < npages; i++) {
-        if (i >= npages_basemem && i < PADDR(boot_alloc(0)) / PGSIZE)
+        if ((i >= npages_basemem && i < PADDR(boot_alloc(0)) / PGSIZE) || i == MPENTRY_PADDR / PGSIZE)
             continue;
         pages[i].pp_ref  = 0;
         pages[i].pp_link = page_free_list;
@@ -505,7 +508,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store) {
     // Fill this function in
 
     pte_t *pgtable = pgdir_walk(pgdir, va, 0);
-    if (!(*pgtable & PTE_P) || !pgtable)  // if no phys addr present
+    if (!pgtable || !(*pgtable & PTE_P))  // if no phys addr present
         return NULL;
 
     if (pte_store) {
@@ -582,7 +585,16 @@ mmio_map_region(physaddr_t pa, size_t size) {
     // Hint: The staff solution uses boot_map_region.
     //
     // Your code here:
-    panic("mmio_map_region not implemented");
+
+    uint32_t perm      = PTE_PCD | PTE_PWT | PTE_W;
+    size_t   rounded_s = ROUNDUP(size, PGSIZE);
+    if (rounded_s + base >= MMIOLIM)
+        panic("MMIO size exceeds MMIOLIM\n");
+
+    boot_map_region(kern_pgdir, base, rounded_s, pa, perm);
+    uintptr_t last_base = base;
+    base += rounded_s;
+    return (void *) last_base;
 }
 
 static uintptr_t user_mem_check_addr;
@@ -607,16 +619,16 @@ static uintptr_t user_mem_check_addr;
 //
 int user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
     // LAB 3: Your code here.
-    uintptr_t end    = ROUNDUP((uintptr_t) va + len, PGSIZE);
     uintptr_t va_tmp = (uintptr_t) va;
+    perm             = perm | PTE_U | PTE_P;
 
     // if fault happened at va, return original va,
     // otherwise return a aligned addr.
-    for (; va_tmp < end; va_tmp += PGSIZE) {
-        pte_t *pte;
-        if (page_lookup(env->env_pgdir, (void *) va_tmp, &pte) == NULL ||
-            !(*pte & (perm | PTE_U)) ||
-            va_tmp >= ULIM) {
+    for (; va_tmp < (uintptr_t) va + len; va_tmp += PGSIZE) {
+        pte_t *          pte;
+        struct PageInfo *p = page_lookup(env->env_pgdir, (void *) va_tmp, &pte);
+
+        if (p == NULL || (*pte & perm) == 0 || va_tmp >= ULIM) {
             user_mem_check_addr = va_tmp == (uintptr_t) va ? (uintptr_t) va : ROUNDDOWN(va_tmp, PGSIZE);
             return -E_FAULT;
         }
