@@ -206,9 +206,10 @@ void mem_init(void) {
     //       overwrite memory.  Known as a "guard page".
     //     Permissions: kernel RW, user NONE
     // Your code goes here:
-    boot_map_region(kern_pgdir,
-                    KSTACKTOP - KSTKSIZE,
-                    KSTKSIZE, PADDR(bootstack), PTE_W);
+    // boot_map_region(kern_pgdir,
+    //                 KSTACKTOP - KSTKSIZE,
+    //                 KSTKSIZE, PADDR(bootstack), PTE_W);
+    mem_init_mp();
 
     //////////////////////////////////////////////////////////////////////
     // Map all of physical memory at KERNBASE.
@@ -266,6 +267,11 @@ mem_init_mp(void) {
     //     Permissions: kernel RW, user NONE
     //
     // LAB 4: Your code here:
+    uint32_t addr = KERNBASE - KSTKSIZE;
+    for (int i = 0; i < NCPU; i++) {
+        boot_map_region(kern_pgdir, addr, KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W);
+        addr -= KSTKSIZE + KSTKGAP;
+    }
 }
 
 // --------------------------------------------------------------
@@ -304,7 +310,7 @@ void page_init(void) {
     // assert(PADDR(KERNBASE) == EXTPHYSMEM);
     size_t i;
     for (i = 1; i < npages; i++) {
-        if (i >= npages_basemem && i < PADDR(boot_alloc(0)) / PGSIZE)
+        if ((i >= npages_basemem && i < PADDR(boot_alloc(0)) / PGSIZE) || i == MPENTRY_PADDR / PGSIZE)
             continue;
         pages[i].pp_ref  = 0;
         pages[i].pp_link = page_free_list;
@@ -580,7 +586,16 @@ mmio_map_region(physaddr_t pa, size_t size) {
     // Hint: The staff solution uses boot_map_region.
     //
     // Your code here:
-    panic("mmio_map_region not implemented");
+
+    uint32_t perm      = PTE_PCD | PTE_PWT | PTE_W;
+    size_t   rounded_s = ROUNDUP(size, PGSIZE);
+    if (rounded_s + base >= MMIOLIM)
+        panic("MMIO size exceeds MMIOLIM\n");
+
+    boot_map_region(kern_pgdir, base, rounded_s, pa, perm);
+    uintptr_t last_base = base;
+    base += rounded_s;
+    return (void *) last_base;
 }
 
 static uintptr_t user_mem_check_addr;
