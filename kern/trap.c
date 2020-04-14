@@ -247,7 +247,6 @@ trap_dispatch(struct Trapframe *tf) {
     // Handle clock interrupts. Don't forget to acknowledge the
     // interrupt using lapic_eoi() before calling the scheduler!
     // LAB 4: Your code here.
-
 }
 
 void trap(struct Trapframe *tf) {
@@ -354,7 +353,42 @@ void page_fault_handler(struct Trapframe *tf) {
     //   (the 'tf' variable points at 'curenv->env_tf').
 
     // LAB 4: Your code here.
+    if (curenv->env_pgfault_upcall != NULL) {
+        // UXSTACK overflow
+        if ((tf->tf_esp < UXSTACKTOP - PGSIZE) && tf->tf_esp > USTACKTOP)
+            goto bad;
 
+        struct UTrapframe *utf;
+
+        // if already in exception stack,
+        // push another trapframe and leave one word spare space
+        if (tf->tf_esp >= UXSTACKTOP - PGSIZE && tf->tf_esp <= UXSTACKTOP) {
+            utf = (struct UTrapframe *) (tf->tf_esp - 4 - sizeof(struct UTrapframe));
+        } else {
+            // otherwise just start at UXSTACKTOP
+            utf = (struct UTrapframe *) (UXSTACKTOP - sizeof(struct UTrapframe));
+        }
+
+        // check permission
+        user_mem_assert(curenv, utf, sizeof(struct UTrapframe), PTE_W);
+
+        // set up UTrapframe
+        // Because we don't need to switch env,
+        // UTrapframe is smaller than Trapframe
+        utf->utf_fault_va = fault_va;
+        utf->utf_err      = tf->tf_err;
+        utf->utf_eip      = tf->tf_eip;
+        utf->utf_esp      = tf->tf_esp;
+        utf->utf_eflags   = tf->tf_eflags;
+        utf->utf_regs     = tf->tf_regs;
+
+        // set stack pointers in UXSTACK and run from there
+        tf->tf_eip = (uintptr_t) curenv->env_pgfault_upcall;
+        tf->tf_esp = (uintptr_t) utf;
+        env_run(curenv);
+    }
+
+bad:
     // Destroy the environment that caused the fault.
     cprintf("[%08x] user fault va %08x ip %08x\n",
             curenv->env_id, fault_va, tf->tf_eip);

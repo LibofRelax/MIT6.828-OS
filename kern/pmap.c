@@ -509,7 +509,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store) {
     // Fill this function in
 
     pte_t *pgtable = pgdir_walk(pgdir, va, 0);
-    if (!(*pgtable & PTE_P) || !pgtable)  // if no phys addr present
+    if (!pgtable || !(*pgtable & PTE_P))  // if no phys addr present
         return NULL;
 
     if (pte_store) {
@@ -620,16 +620,16 @@ static uintptr_t user_mem_check_addr;
 //
 int user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
     // LAB 3: Your code here.
-    uintptr_t end    = ROUNDUP((uintptr_t) va + len, PGSIZE);
     uintptr_t va_tmp = (uintptr_t) va;
+    perm             = perm | PTE_U | PTE_P;
 
     // if fault happened at va, return original va,
     // otherwise return a aligned addr.
-    for (; va_tmp < end; va_tmp += PGSIZE) {
-        pte_t *pte;
-        if (page_lookup(env->env_pgdir, (void *) va_tmp, &pte) == NULL ||
-            !(*pte & (perm | PTE_U)) ||
-            va_tmp >= ULIM) {
+    for (; va_tmp < (uintptr_t) va + len; va_tmp += PGSIZE) {
+        pte_t *          pte;
+        struct PageInfo *p = page_lookup(env->env_pgdir, (void *) va_tmp, &pte);
+
+        if (p == NULL || (*pte & perm) == 0 || va_tmp >= ULIM) {
             user_mem_check_addr = va_tmp == (uintptr_t) va ? (uintptr_t) va : ROUNDDOWN(va_tmp, PGSIZE);
             return -E_FAULT;
         }

@@ -24,7 +24,7 @@ sys_cputs(const char *s, size_t len) {
     // Destroy the environment if not.
 
     // LAB 3: Your code here.
-    user_mem_assert(curenv, (void *) s, len, 0);
+    user_mem_assert(curenv, (void *) s, len, PTE_U);
 
     // Print the string supplied by the user.
     cprintf("%.*s", len, s);
@@ -138,7 +138,14 @@ sys_env_set_status(envid_t envid, int status) {
 static int
 sys_env_set_pgfault_upcall(envid_t envid, void *func) {
     // LAB 4: Your code here.
-    panic("sys_env_set_pgfault_upcall not implemented");
+    struct Env *e;
+    int         r;
+    r = envid2env(envid, &e, 1);
+    if (r < 0)
+        return r;
+
+    e->env_pgfault_upcall = func;
+    return 0;
 }
 
 // Allocate a page of memory and map it at 'va' with permission
@@ -167,6 +174,8 @@ sys_page_alloc(envid_t envid, void *va, int perm) {
     //   allocated!
 
     // LAB 4: Your code here.
+    if (!(perm & (PTE_P | PTE_U)))
+        return -E_INVAL;
     if (perm & ~(PTE_SYSCALL) || (uint32_t) va >= UTOP || (uint32_t) va % PGSIZE != 0)
         return -E_INVAL;
 
@@ -182,9 +191,8 @@ sys_page_alloc(envid_t envid, void *va, int perm) {
         return -E_NO_MEM;
     }
 
-    r = page_insert(e->env_pgdir, p, va, perm | PTE_P | PTE_U);
+    r = page_insert(e->env_pgdir, p, va, perm);
     if (r < 0) {
-        page_free(p);
         return r;  // -E_NO_MEM
     }
 
@@ -374,6 +382,9 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
         case SYS_page_unmap:
             return sys_page_unmap((envid_t) a1, (void *) a2);
+
+        case SYS_env_set_pgfault_upcall:
+            return sys_env_set_pgfault_upcall((envid_t) a1, (void *) a2);
 
         case NSYSCALLS:
             return 0;
