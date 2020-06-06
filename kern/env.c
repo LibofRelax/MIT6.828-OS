@@ -263,6 +263,7 @@ int env_alloc(struct Env **newenv_store, envid_t parent_id) {
 
     // Enable interrupts while in user mode.
     // LAB 4: Your code here.
+    e->env_tf.tf_eflags |= FL_IF;
 
     // Clear the page fault handler until user installs one.
     e->env_pgfault_upcall = 0;
@@ -478,11 +479,11 @@ void env_destroy(struct Env *e) {
     if (curenv == e) {
         curenv = NULL;
         sched_yield();
+    } else if (curenv == NULL) {
+        cprintf("Destroyed the only environment - nothing more to do!\n");
+        while (1)
+            monitor(NULL);
     }
-
-    cprintf("Destroyed the only environment - nothing more to do!\n");
-    while (1)
-        monitor(NULL);
 }
 
 //

@@ -88,6 +88,23 @@ void trap_init(void) {
     void SYSCALL();
     void DEFAULT();
 
+    void IRQ0();
+    void IRQ1();
+    void IRQ2();
+    void IRQ3();
+    void IRQ4();
+    void IRQ5();
+    void IRQ6();
+    void IRQ7();
+    void IRQ8();
+    void IRQ9();
+    void IRQ10();
+    void IRQ11();
+    void IRQ12();
+    void IRQ13();
+    void IRQ14();
+    void IRQ15();
+
     SETGATE(idt[T_DIVIDE], 1, GD_KT, DIVIDE, 0);
     SETGATE(idt[T_DEBUG], 1, GD_KT, DEBUG, 0);
     SETGATE(idt[T_NMI], 1, GD_KT, NMI, 0);
@@ -101,13 +118,32 @@ void trap_init(void) {
     SETGATE(idt[T_SEGNP], 1, GD_KT, SEGNP, 0);
     SETGATE(idt[T_STACK], 1, GD_KT, STACK, 0);
     SETGATE(idt[T_GPFLT], 1, GD_KT, GPFLT, 0);
-    SETGATE(idt[T_PGFLT], 1, GD_KT, PGFLT, 0);
+    SETGATE(idt[T_PGFLT], 0, GD_KT, PGFLT, 0);
     SETGATE(idt[T_FPERR], 1, GD_KT, FPERR, 0);
     SETGATE(idt[T_ALIGN], 1, GD_KT, ALIGN, 0);
     SETGATE(idt[T_MCHK], 1, GD_KT, MCHK, 0);
     SETGATE(idt[T_SIMDERR], 1, GD_KT, SIMDERR, 0);
-    SETGATE(idt[T_SYSCALL], 1, GD_KT, SYSCALL, 3);
+    // syscall is an interrupt therefore 2nd arg(istrap) is 0
+    // cpu resets IF when interrupted, this is important after we turn on IRQs
+    SETGATE(idt[T_SYSCALL], 0, GD_KT, SYSCALL, 3);
     SETGATE(idt[T_DEFAULT], 1, GD_KT, DEFAULT, 0);
+
+    SETGATE(idt[IRQ_OFFSET + 0], 0, GD_KT, IRQ0, 0);
+    SETGATE(idt[IRQ_OFFSET + 1], 0, GD_KT, IRQ1, 0);
+    SETGATE(idt[IRQ_OFFSET + 2], 0, GD_KT, IRQ2, 0);
+    SETGATE(idt[IRQ_OFFSET + 3], 0, GD_KT, IRQ3, 0);
+    SETGATE(idt[IRQ_OFFSET + 4], 0, GD_KT, IRQ4, 0);
+    SETGATE(idt[IRQ_OFFSET + 5], 0, GD_KT, IRQ5, 0);
+    SETGATE(idt[IRQ_OFFSET + 6], 0, GD_KT, IRQ6, 0);
+    SETGATE(idt[IRQ_OFFSET + 7], 0, GD_KT, IRQ7, 0);
+    SETGATE(idt[IRQ_OFFSET + 8], 0, GD_KT, IRQ8, 0);
+    SETGATE(idt[IRQ_OFFSET + 9], 0, GD_KT, IRQ9, 0);
+    SETGATE(idt[IRQ_OFFSET + 10], 0, GD_KT, IRQ10, 0);
+    SETGATE(idt[IRQ_OFFSET + 11], 0, GD_KT, IRQ11, 0);
+    SETGATE(idt[IRQ_OFFSET + 12], 0, GD_KT, IRQ12, 0);
+    SETGATE(idt[IRQ_OFFSET + 13], 0, GD_KT, IRQ13, 0);
+    SETGATE(idt[IRQ_OFFSET + 14], 0, GD_KT, IRQ14, 0);
+    SETGATE(idt[IRQ_OFFSET + 15], 0, GD_KT, IRQ15, 0);
 
     // Per-CPU setup
     trap_init_percpu();
@@ -218,10 +254,16 @@ trap_dispatch(struct Trapframe *tf) {
             break;
 
         case T_SYSCALL:;
+            // empty statement to allow declaration of PushRegs(this is a weird syntax restriction)
             struct PushRegs *reg = &tf->tf_regs;
 
             reg->reg_eax = syscall(reg->reg_eax,
                                    reg->reg_edx, reg->reg_ecx, reg->reg_ebx, reg->reg_edi, reg->reg_esi);
+            break;
+
+        case IRQ_OFFSET + IRQ_TIMER:
+            lapic_eoi();  // acknowledge interrupt. what does this do?
+            sched_yield();
             break;
 
         default:
