@@ -322,7 +322,69 @@ sys_page_unmap(envid_t envid, void *va) {
 static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm) {
     // LAB 4: Your code here.
-    panic("sys_ipc_try_send not implemented");
+
+    int r;
+
+    // get target env
+    struct Env *target_env;
+    r = envid2env(envid, &target_env, 0);
+    if (r < 0)
+        return r;
+    if (target_env == NULL) {
+        cprintf("target env doesn't exist\n");
+        return -E_BAD_ENV;
+    }
+
+    // check target env's status
+    if (!target_env->env_ipc_recving) {
+        // cprintf("target env %d is not receiving\n", envid);
+        return -E_IPC_NOT_RECV;
+    }
+
+    // check srcva
+    if (srcva != NULL && srcva < (void *) UTOP) {
+        if ((int) srcva % PGSIZE != 0) {
+            cprintf("srcva is not page aligned\n");
+            return -E_INVAL;
+        }
+
+        if (perm & ~(PTE_SYSCALL)) {
+            cprintf("perm contains bits not in PTE_SYSCALL\n");
+            return -E_INVAL;
+        }
+
+        pte_t *          pte;
+        struct PageInfo *pg = page_lookup(curenv->env_pgdir, srcva, &pte);
+        if (pg == NULL) {
+            cprintf("no page is mapped at srcva\n");
+            return -E_INVAL;
+        }
+
+        if (!(*pte & PTE_W) && perm & PTE_W) {
+            cprintf("perm trying to set read-only page writable\n");
+            return -E_INVAL;
+        }
+
+        // map the page
+        void *dstva = target_env->env_ipc_dstva;
+        if (dstva != NULL && dstva < (void *) UTOP) {
+            r = page_insert(target_env->env_pgdir, pg, dstva, perm);
+            if (r < 0)
+                return r;
+        }
+    }
+
+    // IPC starts
+    target_env->env_ipc_recving = false;
+    target_env->env_ipc_from    = curenv->env_id;
+    target_env->env_ipc_value   = value;
+    target_env->env_ipc_perm    = perm;
+
+    // set receiving env's return value
+    target_env->env_tf.tf_regs.reg_eax = 0;
+
+    target_env->env_status = ENV_RUNNABLE;
+    return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -339,7 +401,14 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm) {
 static int
 sys_ipc_recv(void *dstva) {
     // LAB 4: Your code here.
-    panic("sys_ipc_recv not implemented");
+    if (dstva != NULL && dstva < (void *) UTOP && (int) dstva % PGSIZE != 0)
+        return -E_INVAL;
+
+    curenv->env_ipc_dstva   = dstva;
+    curenv->env_ipc_recving = true;
+    curenv->env_status      = ENV_NOT_RUNNABLE;
+
+    sched_yield();
     return 0;
 }
 
@@ -385,6 +454,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 
         case SYS_env_set_pgfault_upcall:
             return sys_env_set_pgfault_upcall((envid_t) a1, (void *) a2);
+
+        case SYS_ipc_recv:
+            return sys_ipc_recv((void *) a1);
+
+        case SYS_ipc_try_send:
+            return sys_ipc_try_send((envid_t) a1, (uint32_t) a2, (void *) a3, (unsigned int) a4);
 
         case NSYSCALLS:
             return 0;

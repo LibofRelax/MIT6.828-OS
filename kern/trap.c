@@ -108,7 +108,7 @@ void trap_init(void) {
     SETGATE(idt[T_DIVIDE], 1, GD_KT, DIVIDE, 0);
     SETGATE(idt[T_DEBUG], 1, GD_KT, DEBUG, 0);
     SETGATE(idt[T_NMI], 1, GD_KT, NMI, 0);
-    SETGATE(idt[T_BRKPT], 1, GD_KT, BRKPT, 3);
+    SETGATE(idt[T_BRKPT], 0, GD_KT, BRKPT, 3);
     SETGATE(idt[T_OFLOW], 1, GD_KT, OFLOW, 0);
     SETGATE(idt[T_BOUND], 1, GD_KT, BOUND, 0);
     SETGATE(idt[T_ILLOP], 1, GD_KT, ILLOP, 0);
@@ -309,6 +309,9 @@ void trap(struct Trapframe *tf) {
     // Check that interrupts are disabled.  If this assertion
     // fails, DO NOT be tempted to fix it by inserting a "cli" in
     // the interrupt path.
+
+    // for debug:
+    // cprintf("trap number: %d\n", tf->tf_trapno);
     assert(!(read_eflags() & FL_IF));
 
     if ((tf->tf_cs & 3) == 3) {
