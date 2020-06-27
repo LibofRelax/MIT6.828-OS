@@ -151,7 +151,8 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
         flush_block(diskaddr(free_blockno));
     }
 
-    *ppdiskbno = &(((uint32_t *) diskaddr(f->f_indirect))[filebno - NDIRECT]);
+    uint32_t *indirect_blk = (uint32_t *) diskaddr(f->f_indirect);
+    *ppdiskbno             = &indirect_blk[filebno - NDIRECT];
     return 0;
 }
 
@@ -172,14 +173,8 @@ int file_get_block(struct File *f, uint32_t filebno, char **blk) {
         return r;
 
     if (*blkno_store == 0) {
-        if (filebno > NDIRECT)
-            panic("in file_get_block, filebno > NDIRECT\n");
-
         if ((*blkno_store = alloc_block()) < 0)
             return -E_NO_DISK;
-
-        memset(diskaddr(*blkno_store), 0, BLKSIZE);
-        f->f_direct[filebno] = *blkno_store;
 
         flush_block(diskaddr(*blkno_store));
     }

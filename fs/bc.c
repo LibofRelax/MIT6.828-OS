@@ -55,6 +55,8 @@ bc_pgfault(struct UTrapframe *utf) {
     // Check that the block we read was allocated. (exercise for
     // the reader: why do we do this *after* reading the block
     // in?)
+    // because bitmap itself needs to be read in as well
+    // checking before reading would cause page fault if we are reading bitmap it self
     if (bitmap && block_is_free(blockno))
         panic("reading free block %08x\n", blockno);
 }
