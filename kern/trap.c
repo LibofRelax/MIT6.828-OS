@@ -105,6 +105,7 @@ void trap_init(void) {
     void IRQ14();
     void IRQ15();
 
+    // note: be careful with interrupt and trap, which is interrupt? which is trap?
     SETGATE(idt[T_DIVIDE], 1, GD_KT, DIVIDE, 0);
     SETGATE(idt[T_DEBUG], 1, GD_KT, DEBUG, 0);
     SETGATE(idt[T_NMI], 1, GD_KT, NMI, 0);
@@ -117,7 +118,7 @@ void trap_init(void) {
     SETGATE(idt[T_TSS], 1, GD_KT, TSS, 0);
     SETGATE(idt[T_SEGNP], 1, GD_KT, SEGNP, 0);
     SETGATE(idt[T_STACK], 1, GD_KT, STACK, 0);
-    SETGATE(idt[T_GPFLT], 1, GD_KT, GPFLT, 0);
+    SETGATE(idt[T_GPFLT], 0, GD_KT, GPFLT, 0);
     SETGATE(idt[T_PGFLT], 0, GD_KT, PGFLT, 0);
     SETGATE(idt[T_FPERR], 1, GD_KT, FPERR, 0);
     SETGATE(idt[T_ALIGN], 1, GD_KT, ALIGN, 0);
@@ -264,6 +265,14 @@ trap_dispatch(struct Trapframe *tf) {
         case IRQ_OFFSET + IRQ_TIMER:
             lapic_eoi();  // acknowledge interrupt. what does this do?
             sched_yield();
+            break;
+
+        case IRQ_OFFSET + IRQ_KBD:
+            kbd_intr();
+            break;
+
+        case IRQ_OFFSET + IRQ_SERIAL:
+            serial_intr();
             break;
 
         default:

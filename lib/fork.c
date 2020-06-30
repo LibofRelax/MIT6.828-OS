@@ -47,7 +47,7 @@ pgfault(struct UTrapframe *utf) {
 
     addr = ROUNDDOWN(addr, PGSIZE);
     memcpy(PFTEMP, addr, PGSIZE);
-    
+
     r = sys_page_map(0, PFTEMP, 0, addr, PTE_W | PTE_U);
     if (r < 0)
         panic("page map error: err code %d\n", r);
@@ -76,7 +76,15 @@ duppage(envid_t envid, unsigned pn) {
     void *va  = (void *) (pn * PGSIZE);
     pte_t pte = uvpt[pn];
 
-    int perm = pte & 0xFFF & PTE_SYSCALL;
+    int perm = pte & PTE_SYSCALL;
+
+    // if shared, copy directly
+    if (pte & PTE_SHARE) {
+        sys_page_map(0, va, envid, va, perm);
+        return 0;
+    }
+
+    // else if writeable or copy-on-write, make it copy-on-write
     if ((pte & PTE_COW) || (pte & PTE_W)) {
         perm |= PTE_COW;
         perm &= ~PTE_W;
@@ -124,13 +132,12 @@ fork(void) {
         return 0;                               // return to child
     } else {
         for (int va = UTEXT; va < USTACKTOP; va += PGSIZE) {
-            int   pn  = PGNUM(va);
-
             // must check separately otherwise it will fault trying to access invalid pgtable
             pde_t pde = uvpd[PDX(va)];
             if (!(pde & PTE_P))
                 continue;
 
+            int   pn  = PGNUM(va);
             pte_t pte = uvpt[pn];
             if (!(pte & PTE_P))
                 continue;
