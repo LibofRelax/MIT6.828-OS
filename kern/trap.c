@@ -126,6 +126,7 @@ void trap_init(void) {
     SETGATE(idt[T_SIMDERR], 1, GD_KT, SIMDERR, 0);
     // syscall is an interrupt therefore 2nd arg(istrap) is 0
     // cpu resets IF when interrupted, this is important after we turn on IRQs
+    // resetting IF (to 0) will prevent CPU being interupted by hardware interupts 
     SETGATE(idt[T_SYSCALL], 0, GD_KT, SYSCALL, 3);
     SETGATE(idt[T_DEFAULT], 1, GD_KT, DEFAULT, 0);
 
